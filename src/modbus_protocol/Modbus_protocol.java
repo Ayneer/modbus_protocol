@@ -3,24 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-
-
 package modbus_protocol;
 
 import Persistencia.ConexionServidor;
 import Vista.MedidorModbus;
-import com.ghgande.j2mod.modbus.*;
-import com.ghgande.j2mod.modbus.facade.ModbusSerialMaster;
-import com.ghgande.j2mod.modbus.net.*;
-import com.ghgande.j2mod.modbus.procimg.InputRegister;
-import com.ghgande.j2mod.modbus.procimg.Register;
-import com.ghgande.j2mod.modbus.procimg.SimpleInputRegister;
-import com.ghgande.j2mod.modbus.procimg.SimpleRegister;
-import com.ghgande.j2mod.modbus.util.*;
-import gnu.io.SerialPort;
 import java.io.IOException;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.TimeUnit;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,16 +19,57 @@ import java.util.logging.Logger;
  *
  * @author Ayneer Luis Gonzalez
  */
-public class Modbus_protocol {    
-    
+public class Modbus_protocol {
+
     public static void main(String[] args) throws IOException {
         // TODO code application logic here
-        
+
         new MedidorModbus().setVisible(true);
-        
+        //ConexionServidor con = new ConexionServidor();
+       /* int contador = 1;
+        while (true) {
+            try {
+                LocalDate fechaActual = LocalDate.now();
+                String fecha = String.valueOf(fechaActual.format(DateTimeFormatter.ofPattern("M/d/yyyy")));
+
+                LocalTime hora = LocalTime.now();
+                String horaA = String.valueOf(hora);
+                System.out.println(horaA);
+                String formato = "";
+
+                if (hora.getHour() >= 12) {
+                    if (hora.getHour() == 24) {
+                        //son las 12 AM
+                        formato = "AM";
+                    } else {
+                        formato = "PM";
+                    }
+
+                    if (hora.getHour() > 12) {
+                        horaA = (hora.getHour() - 12) + ":" + hora.getMinute() + ":" + hora.getSecond();
+                    }
+                } else {
+                    if (hora.getHour() == 0) {
+                        //son las 12 AM
+                        horaA = 12 + ":" + hora.getMinute() + ":" + hora.getSecond();
+                    }
+                    formato = "AM";
+                }
+                String fecha2 = fecha + ", " + horaA + " " + formato;
+
+                System.out.println("Hora como javascript: " + fecha2);
+
+                con.enviarConsumo(1, contador, fecha2);
+                
+                Thread.sleep(300000); // Wait 5 minutos. es en milisegundos
+                contador++;
+            } catch (InterruptedException ex) {
+                Logger.getLogger(Modbus_protocol.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }*/
+
         //Conocer el consumo = 8192
         //Conocer el id adress = 528
-           
     }
-    
+
 }

@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.*;
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -22,8 +23,8 @@ import org.json.JSONObject;
  */
 public class ConexionServidor {
 
-    public void enviarConsumo(int idMedidor, int consumoReal, Date fecha) throws MalformedURLException, IOException {
-        URL url = new URL("http://192.168.1.54:3500/enviarConsumo");
+    public void enviarConsumo(int idMedidor, int consumoReal, String fecha) throws MalformedURLException, IOException {
+        URL url = new URL("http://localhost:3500/consumo");
         HttpURLConnection servidor = (HttpURLConnection) url.openConnection();
 // Enable output for the connection.
         servidor.setDoOutput(true);
@@ -33,7 +34,7 @@ public class ConexionServidor {
         servidor.setRequestMethod("POST");
 
 // Create JSON request.
-        JSONObject jsonObj = new JSONObject().put("ID_Medidor", idMedidor).put("Consumo_Real", consumoReal).put("Fecha", fecha);
+        JSONObject jsonObj = new JSONObject().put("id_medidor", idMedidor).put("consumoTotal", consumoReal).put("fecha", fecha);
 
         OutputStreamWriter writer = new OutputStreamWriter(servidor.getOutputStream());
         writer.write(jsonObj.toString());

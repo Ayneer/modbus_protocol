@@ -3,6 +3,9 @@ package Vista;
 import Logica.SoftwareXYZ;
 import Persistencia.ConexionServidor;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -193,7 +196,7 @@ public class MedidorModbus extends javax.swing.JFrame {
             btnCancelar.setEnabled(true);
             idMedidor.setEditable(true);
             puertoCOM.setEditable(true);
-        }else{
+        } else {
             JOptionPane.showMessageDialog(null, "Debe llenar todos los campos.");
         }
 
@@ -223,12 +226,39 @@ public class MedidorModbus extends javax.swing.JFrame {
                     int lecturaMedidor = xyz.leerConsumoMedidorInteligente(id, puerto);
                     int lecturaFinal = xyz.obtenerLecturaReal(lecturaMedidor);
 
+                    LocalDate fechaActual = LocalDate.now();
+                    String formatoFecha = String.valueOf(fechaActual.format(DateTimeFormatter.ofPattern("M/d/yyyy")));
+
+                    LocalTime horaActua = LocalTime.now();
+                    String horaA = String.valueOf(horaActua);
+
+                    String formatoHora = "";
+
+                    if (horaActua.getHour() >= 12) {
+                        if (horaActua.getHour() == 24) {
+                            //son las 12 AM
+                            formatoHora = "AM";
+                        } else {
+                            formatoHora = "PM";
+                        }
+
+                        if (horaActua.getHour() > 12) {
+                            horaA = (horaActua.getHour() - 12) + ":" + horaActua.getMinute() + ":" + horaActua.getSecond();
+                        }
+                    } else {
+                        if (horaActua.getHour() == 0) {
+                            //son las 12 AM
+                            horaA = 12 + ":" + horaActua.getMinute() + ":" + horaActua.getSecond();
+                        }
+                        formatoHora = "AM";
+                    }
+                    String fecha = formatoFecha + ", " + horaA + " " + formatoHora;
                     if (ultimaLectura == 0) {
-                        conex.enviarConsumo(id, lecturaFinal, new Date());
+                        conex.enviarConsumo(id, lecturaFinal, fecha);
                         ultimaLectura = lecturaFinal;
                     } else {
                         if (lecturaFinal > ultimaLectura) {
-                            conex.enviarConsumo(id, lecturaFinal, new Date());
+                            conex.enviarConsumo(id, lecturaFinal, fecha);
                             ultimaLectura = lecturaFinal;
                         }
                     }
