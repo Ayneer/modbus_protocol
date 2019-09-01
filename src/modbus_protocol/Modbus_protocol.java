@@ -24,16 +24,16 @@ public class Modbus_protocol {
     public static void main(String[] args) throws IOException {
         // TODO code application logic here
 
-        new MedidorModbus().setVisible(true);
-        //ConexionServidor con = new ConexionServidor();
-       /* int contador = 1;
+        //new MedidorModbus().setVisible(true);
+        ConexionServidor con = new ConexionServidor();
+        int contador = 39;
         while (true) {
             try {
                 LocalDate fechaActual = LocalDate.now();
                 String fecha = String.valueOf(fechaActual.format(DateTimeFormatter.ofPattern("M/d/yyyy")));
 
                 LocalTime hora = LocalTime.now();
-                String horaA = String.valueOf(hora);
+                String horaA = hora.getHour() + ":" + hora.getMinute() + ":" + hora.getSecond();
                 System.out.println(horaA);
                 String formato = "";
 
@@ -66,7 +66,7 @@ public class Modbus_protocol {
             } catch (InterruptedException ex) {
                 Logger.getLogger(Modbus_protocol.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }*/
+        }
 
         //Conocer el consumo = 8192
         //Conocer el id adress = 528
