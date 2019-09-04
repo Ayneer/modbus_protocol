@@ -1,17 +1,17 @@
 package Vista;
 
+import Logica.ConsumoReal;
 import Logica.SoftwareXYZ;
 import Persistencia.ConexionServidor;
+import com.ghgande.j2mod.modbus.ModbusException;
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JOptionPane;
-import modbus_protocol.Modbus_protocol;
+import jssc.SerialPortException;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -37,20 +37,20 @@ public class MedidorModbus extends javax.swing.JFrame {
 
     int id = 0;
     String puerto = "";
-    int ultimaLectura = 0;
+    int ultimaLectura = xyz.leerLectura();
     ConexionServidor conex = new ConexionServidor();
 
     public boolean leerCampos() {
 
-        boolean estado = false;
+        boolean estado;
 
-        String texto1 = this.idMedidor.getText().toString();
-        String texto2 = this.puertoCOM.getText().toString();
+        String texto1 = this.idMedidor.getText();
+        String texto2 = this.puertoCOM.getText();
         if ("".equals(texto1) || "".equals(texto2)) {
             estado = false;
         } else {
-            id = Integer.parseInt(this.idMedidor.getText().toString().trim());
-            puerto = this.puertoCOM.getText().toString().trim();
+            id = Integer.parseInt(this.idMedidor.getText().trim());
+            puerto = this.puertoCOM.getText().trim();
             estado = true;
         }
 
@@ -190,7 +190,11 @@ public class MedidorModbus extends javax.swing.JFrame {
             idMedidor.setEditable(false);
             puertoCOM.setEditable(false);
 
-            jlabelValor.setText("Lectura actual = " + xyz.leerConsumoMedidorInteligente(id, puerto) + " Kwh");
+            try {
+                jlabelValor.setText("Lectura actual = " + xyz.leerConsumoMedidorInteligente(id, puerto) + " Kwh");
+            } catch (Exception ex) {
+                System.out.println("No se puede establecer comunicación con el medidor.");
+            }
 
             btnConexion.setEnabled(true);
             btnCancelar.setEnabled(true);
@@ -220,56 +224,91 @@ public class MedidorModbus extends javax.swing.JFrame {
         public void run() {
 
             while (estado) {
-
+                int lecturaMedidor = 0;
+                String fecha = "";
+                ArrayList<ConsumoReal> listaConsumo = new ArrayList<>();
                 try {
 
-                    int lecturaMedidor = xyz.leerConsumoMedidorInteligente(id, puerto);
-                    int lecturaFinal = xyz.obtenerLecturaReal(lecturaMedidor);
+                    System.out.println("Entro");
+                    lecturaMedidor = xyz.leerConsumoMedidorInteligente(id, puerto);
+                    fecha = xyz.obtenerFechaMedicion();
 
-                    LocalDate fechaActual = LocalDate.now();
-                    String formatoFecha = String.valueOf(fechaActual.format(DateTimeFormatter.ofPattern("M/d/yyyy")));
+                    if (ultimaLectura == -1) {//Primera lectura
+                        conex.enviarConsumo(id, lecturaMedidor, fecha);
+                        ultimaLectura = lecturaMedidor;
+                        xyz.guardarLectura(ultimaLectura);
+                    } else {//No es la primera lectura
+                        if (lecturaMedidor > ultimaLectura) {
+                            //Antes de enviar el nuevo consumo hacia el servidor
+                            //se verifica si existen consumos almacenados por enviar.
+                            listaConsumo = xyz.leerConsumo();
 
-                    LocalTime horaActua = LocalTime.now();
-                    String horaA = String.valueOf(horaActua);
+                            if (!listaConsumo.isEmpty()) {
+                                //Existen consumos por enviar!!
+                                int contadorError = 0;
+                                int i = 0;
+                                for (i = 0; i < listaConsumo.size(); i++) {
 
-                    String formatoHora = "";
-
-                    if (horaActua.getHour() >= 12) {
-                        if (horaActua.getHour() == 24) {
-                            //son las 12 AM
-                            formatoHora = "AM";
-                        } else {
-                            formatoHora = "PM";
+                                    //Intentamos enviar el primer consumo almacenado.
+                                    try {
+                                        conex.enviarConsumo(listaConsumo.get(i).getId(), listaConsumo.get(i).getLecturaMedidor(), listaConsumo.get(i).getFecha());
+                                        //Si se envia, se debe eliminar del array.
+                                        listaConsumo.remove(i);
+                                        xyz.guardarConsumo(listaConsumo);//actualizamos la lista
+                                    } catch (IOException ex) {
+                                        System.out.println("Error al volver intentar conectar con el servidor...");
+                                        contadorError++;
+                                    }
+                                    if (contadorError > 0) {
+                                        //Si no se puede conectar con el servidor
+                                        //No se sigue intentando, y se pasa a guardar
+                                        //el nuevo consumo
+                                        break;
+                                    }
+                                    i--;//reiniciamos el iterador.
+                                }
+                            }
+                            //Vuelvo a verificar el estado de la lista
+                            //actualizo la lista
+                            listaConsumo = xyz.leerConsumo();
+                            if (listaConsumo.isEmpty()) {
+                                //Finalmente se enviaron los consumos guardados
+                                conex.enviarConsumo(id, lecturaMedidor, fecha);
+                                ultimaLectura = lecturaMedidor;
+                                xyz.guardarLectura(ultimaLectura);
+                            } else {
+                                //Se guarda de forma local
+                                ConsumoReal consumo = new ConsumoReal(id, lecturaMedidor, fecha);
+                                listaConsumo.add(consumo);
+                                xyz.guardarConsumo(listaConsumo);
+                                ultimaLectura = lecturaMedidor;
+                                xyz.guardarLectura(ultimaLectura);
+                            }
                         }
-
-                        if (horaActua.getHour() > 12) {
-                            horaA = (horaActua.getHour() - 12) + ":" + horaActua.getMinute() + ":" + horaActua.getSecond();
-                        }
-                    } else {
-                        if (horaActua.getHour() == 0) {
-                            //son las 12 AM
-                            horaA = 12 + ":" + horaActua.getMinute() + ":" + horaActua.getSecond();
-                        }
-                        formatoHora = "AM";
                     }
-                    String fecha = formatoFecha + ", " + horaA + " " + formatoHora;
-                    if (ultimaLectura == 0) {
-                        conex.enviarConsumo(id, lecturaFinal, fecha);
-                        ultimaLectura = lecturaFinal;
-                    } else {
-                        if (lecturaFinal > ultimaLectura) {
-                            conex.enviarConsumo(id, lecturaFinal, fecha);
-                            ultimaLectura = lecturaFinal;
-                        }
-                    }
 
-                    jlabelValor.setText("Lectura actual = " + lecturaFinal + " Kwh | " + new Date());
+                    jlabelValor.setText("Lectura actual = " + lecturaMedidor + " Kwh | " + new Date());
+
                     TimeUnit.SECONDS.sleep(tiempo);
 
-                } catch (InterruptedException ex) {
-                    Logger.getLogger(MedidorModbus.class.getName()).log(Level.SEVERE, null, ex);
                 } catch (IOException ex) {
-                    Logger.getLogger(MedidorModbus.class.getName()).log(Level.SEVERE, null, ex);
+                    System.out.println("Error al intentar conectar con el servidor.");
+                    System.out.println("La lectura se almacenará de forma local...");
+                    ConsumoReal cReal = new ConsumoReal(id, lecturaMedidor, fecha);
+                    listaConsumo = xyz.leerConsumo();
+                    listaConsumo.add(cReal);
+                    xyz.guardarConsumo(listaConsumo);
+                    ultimaLectura = lecturaMedidor;
+                    xyz.guardarLectura(ultimaLectura);
+                    System.out.println("Consumo guardado de forma local." + cReal);
+                } catch (InterruptedException ex) {
+                    System.out.println("Error al dormir el hilo");
+                } catch (ModbusException ex) {
+                    System.out.println("Error al intentar leer el medidor!!");
+                } catch (SerialPortException ex) {
+                    System.out.println("Error al intentar conectar con el medidor. No esta conectado!!");
+                } catch (Exception ex) {
+                    System.out.println("Error al intentar conectar con el medidor. SI esta conectado!!");
                 }
             }
             System.out.println("Se acabo el hilo!!");

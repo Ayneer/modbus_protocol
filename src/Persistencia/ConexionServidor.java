@@ -23,17 +23,21 @@ import org.json.JSONObject;
  */
 public class ConexionServidor {
 
-    public void enviarConsumo(int idMedidor, int consumoReal, String fecha) throws MalformedURLException, IOException {
-        URL url = new URL("http://localhost:3500/consumo");
+    public void enviarConsumo(int idMedidor, int consumoReal, String fecha) throws IOException {
+        URL url;
+
+        url = new URL("http://localhost:3500/consumo");
         HttpURLConnection servidor = (HttpURLConnection) url.openConnection();
-// Enable output for the connection.
+
+        // Enable output for the connection.
         servidor.setDoOutput(true);
         servidor.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
         servidor.setRequestProperty("Accept", "application/json");
-// Set HTTP request method.
+
+        // Set HTTP request method.
         servidor.setRequestMethod("POST");
 
-// Create JSON request.
+        // Create JSON request.
         JSONObject jsonObj = new JSONObject().put("id_medidor", idMedidor).put("consumoTotal", consumoReal).put("fecha", fecha);
 
         OutputStreamWriter writer = new OutputStreamWriter(servidor.getOutputStream());
@@ -47,7 +51,9 @@ public class ConexionServidor {
         while ((line = reader.readLine()) != null) {
             response.append(line);
         }
+
         reader.close();
+
         System.out.println(response.toString());
 
     }

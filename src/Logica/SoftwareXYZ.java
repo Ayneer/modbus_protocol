@@ -6,10 +6,24 @@
 package Logica;
 
 import com.ghgande.j2mod.modbus.Modbus;
+import com.ghgande.j2mod.modbus.ModbusException;
 import com.ghgande.j2mod.modbus.facade.ModbusSerialMaster;
 import com.ghgande.j2mod.modbus.procimg.InputRegister;
 import com.ghgande.j2mod.modbus.util.SerialParameters;
-import gnu.io.SerialPort;
+import java.io.EOFException;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import jssc.*;
 
 /**
  *
@@ -31,7 +45,7 @@ public class SoftwareXYZ {
         this.estado = estado;
     }
 
-    public int leerConsumoMedidorInteligente(int idMedidor, String puerto) {
+    public int leerConsumoMedidorInteligente(int idMedidor, String puerto) throws SerialPortException, ModbusException, Exception {
 
         //Respesta del medidor
         String valor = "";
@@ -54,30 +68,30 @@ public class SoftwareXYZ {
         parametros.setEncoding(Modbus.SERIAL_ENCODING_RTU);
         parametros.setEcho(false);
 
-        try {
-            //Se abre una conexion con el esclavo.
-            medidorSmart = new ModbusSerialMaster(parametros);
-            medidorSmart.connect();
+        //Se verifica la disponibilidad del puerto
+        SerialPort portCom = new SerialPort(puerto);
 
-            //Se realiza la consulta al maestro.
-            respuestaMaestro = medidorSmart.readInputRegisters(idMedidor, codigo, 2);
+        portCom.openPort();
+        portCom.closePort();
+        //Se abre una conexion con el esclavo.
+        medidorSmart = new ModbusSerialMaster(parametros);
+        medidorSmart.connect();
 
-            //Se lee la respuesta del maestro.
-            for (int i = 0; i < respuestaMaestro.length; i++) {
-                valor += String.valueOf(respuestaMaestro[i]);
-            }
+        //Se realiza la consulta al maestro.
+        respuestaMaestro = medidorSmart.readInputRegisters(idMedidor, codigo, 2);
 
-            valorConsulta = Integer.parseInt(valor);
-
-            //Se cierra la conexión.
-            medidorSmart.disconnect();
-
-        } catch (Exception exception) {
-            System.out.print("\nError al intentar establecer comunicación con el maestro.");
-          //  exception.printStackTrace();
+        //Se lee la respuesta del maestro.
+        for (int i = 0; i < respuestaMaestro.length; i++) {
+            valor += String.valueOf(respuestaMaestro[i]);
         }
 
-        return valorConsulta;
+        valorConsulta = Integer.parseInt(valor);
+
+        //Se cierra la conexión.
+        medidorSmart.disconnect();
+
+        //Ahora se obtiene la lectura que realmente le interesa al cliente.
+        return this.obtenerLecturaReal(valorConsulta);
     }
 
     public int obtenerLecturaReal(int lectura) {
@@ -102,4 +116,110 @@ public class SoftwareXYZ {
         return lecturaReal;
 
     }
+
+    public String obtenerFechaMedicion() {
+        //Obtenemos la fecha y se pasa al formato requerido.
+        LocalDate fecha = LocalDate.now();
+        String fechaActual = String.valueOf(fecha.format(DateTimeFormatter.ofPattern("M/d/yyyy")));
+
+        //Se obtiene la hora y se pasa a string con el formato requerido
+        LocalTime hora = LocalTime.now();
+        String horaActual = "";
+
+        String formato = "";//AM o PM
+        //La hora se debe trabajar en formato de 12h.
+        if (hora.getHour() >= 12) {
+            if (hora.getHour() == 24) {
+                //son las 12 AM
+                formato = "AM";
+            } else {// son 12 am
+                formato = "PM";
+                horaActual = hora.getHour() + ":" + hora.getMinute() + ":" + hora.getSecond();
+            }
+
+            if (hora.getHour() > 12) {
+                horaActual = (hora.getHour() - 12) + ":" + hora.getMinute() + ":" + hora.getSecond();
+            }
+        } else {
+            if (hora.getHour() == 0) {
+                //son las 12 AM
+                formato = "AM";
+                horaActual = 12 + ":" + hora.getMinute() + ":" + hora.getSecond();
+            } else {//Hora normal de 12h
+                horaActual = hora.getHour() + ":" + hora.getMinute() + ":" + hora.getSecond();
+            }
+            formato = "AM";
+        }
+
+        String fechaMedicion = fechaActual + ", " + horaActual + " " + formato;
+
+        return fechaMedicion;
+    }
+    
+    public void guardarConsumo(ArrayList<ConsumoReal> listaConsumo){
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("consumo.dat"));
+            oos.writeObject(listaConsumo);
+            oos.close();
+        } catch (FileNotFoundException ex) {
+            System.out.println("No se encuentra el archivo.");
+        } catch (IOException ex) {
+            System.out.println("Error al trabajar con archivo.");
+        }
+    }
+    
+    public void guardarLectura(int lectura){
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("lectura.dat"));
+            oos.writeObject(lectura);
+            oos.close();
+        } catch (FileNotFoundException ex) {
+            System.out.println("No se encuentra el archivo.");
+        } catch (IOException ex) {
+            System.out.println("Error al trabajar con archivo.");
+        }
+    }
+    
+    public ArrayList<ConsumoReal> leerConsumo(){
+        ArrayList<ConsumoReal> listaConsumo = new ArrayList<>();
+        try {
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream("consumo.dat"));
+            Object aux = ois.readObject();
+            listaConsumo = (ArrayList<ConsumoReal>) aux;
+            ois.close();
+        } catch (ClassNotFoundException ex) {
+            System.out.println("No se encuentra el objeto.");
+        } catch (FileNotFoundException ex) {
+            System.out.println("No se encuentra el archivo.");
+            return listaConsumo;
+        } catch (EOFException ex) {
+            System.out.println ("Lectura finalizada! Fin de fichero");
+        } catch (IOException ex) {
+            System.out.println ("Error al leer consumo");
+        }
+        
+        return listaConsumo;
+    }
+    
+    public int leerLectura(){
+        int lectura = -1;
+        try {
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream("lectura.dat"));
+            Object aux = ois.readObject();
+            lectura = (int) aux;
+            ois.close();
+        } catch (ClassNotFoundException ex) {
+            System.out.println("No se puede castear el objeto.");
+        } catch (FileNotFoundException ex) {
+            System.out.println("No se encuentra el archivo.");
+            return lectura;
+        } catch (EOFException ex) {
+            System.out.println ("Lectura finalizada! Fin de fichero");
+        } catch (IOException ex) {
+            System.out.println ("Error al leer consumo");
+        }
+        
+        return lectura;
+    }
+    
 }
